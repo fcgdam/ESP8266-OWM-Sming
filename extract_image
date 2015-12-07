@@ -1,0 +1,2 @@
+/opt/esptool-ck/esptool -bz 4M -eo app.out -bo app_00000.bin -bs .text -bs .data -bs .rodata -bc -ec -eo app.out -es .irom0.text app_40000.bin -ec
+

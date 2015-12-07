@@ -8,3 +8,7 @@ So if a basic OpenWeather Client is needed that displays the current location te
 and weather conditions on a 16x02 LCD I2C connected display to the ESP8266, this is it.
 
 Other code is for testing the Phant Library port, and IoT device registration.
+
+# IMPORTANT
+This code sample uses the Sming Framework Develop branch, that uses the 5.0 version
+of the Arduino JSON Library. 
