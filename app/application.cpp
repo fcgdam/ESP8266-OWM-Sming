@@ -1,34 +1,22 @@
+// Please configure your SSID, passwords and OW key on the user_config.h file
 #include <user_config.h>
+
 #include <SmingCore/SmingCore.h>
 #include <Libraries/LiquidCrystal/LiquidCrystal_I2C.h>
 
 #include <Phant.h>
 #include <Print.h>
-//#include <Services/ArduinoJson/include/ArduinoJson/JsonVariant.hpp>
-
-#ifndef WIFI_SSID
-    #define WIFI_SSID "SSID" // Put you SSID and Password here
-    #define WIFI_PWD "123456Password"
-#endif
-
-#define LOCATION "Lisbon"
-#define METRICS  "metric"   
-#define OWAPIKEY "PUT_YOUR_OWM_KEY_HERE"
-
-#define PHANTSERVER  "192.168.1.17:8080"
-#define PHANTPUBKEY  "VmwrzZDPKpFyAddzPX4oIbqXwp9"
-#define PHANTPRIVKEY "7QLYlybXMgCAaVVdLp9zsaWdRw6"
 
 // For more information visit useful wiki page: http://arduino-info.wikispaces.com/LCD-Blue-I2C
 #define I2C_LCD_ADDR 0x27
 LiquidCrystal_I2C lcd(I2C_LCD_ADDR, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);
 
-
 Timer procTimer;
 Timer checkTimer;
 Timer owTimer;
+Timer IoTTimer;
 
-Phant phant(PHANTSERVER, PHANTPUBKEY, PHANTPRIVKEY);
+Phant phantHeap(PHANTSERVER, PHANTPUBKEY, PHANTPRIVKEY);
 
 int sensorValue = 0;
 int pressure = 900;
@@ -36,7 +24,7 @@ int temperature = 20;
 
 HttpClient phantServer;
 HttpClient provServer; // Provisioning server client
-HttpClient owServer; // Openweather
+HttpClient owServer;   // Openweather
 String deviceid;
 
 void onDataSent(HttpClient& client, bool successful) {
@@ -118,13 +106,10 @@ void onProvSent(HttpClient &client, bool successful) {
         //                
         //            }
 
-        Serial.println("Done...");
-        lcd.setCursor(0,0);
-        lcd.print("Done...     ");
     }
 }
 
-void registerDevice() {
+void IoTPing() {
     String devIP;
     StaticJsonBuffer<256> jsonBuffer;
 
@@ -154,36 +139,33 @@ void logHeap() {
     // Read our sensor value :)
     heap = system_get_free_heap_size();
 
-    phant.add("heap", heap);
-
-    //Serial.println("http://192.168.1.17:8080/input/" + String(PHANTPUBKEY) + "?private_key=" + String(PHANTPRIVKEY) + "&heap=" + String(heap));
-
-    phantServer.downloadString("http://192.168.1.17:8080/input/" + String(PHANTPUBKEY) + "?private_key=" + String(PHANTPRIVKEY) + "&heap=" + String(heap), onDataSent);
-
-    //Serial.print("URL: ");
-    //Serial.println(phant.url());
+    phantHeap.add("heap", heap);
+  
+    String pURL = phantHeap.url();  // Warning!!! Calling URL will clear the parameters added to the phant URL!
     
-    //phantServer.downloadString(phant.url(), onDataSent);
+//    Serial.print("Purl: ");
+//    Serial.println(pURL );
+    
+    phantServer.downloadString( pURL, onDataSent);
 
 }
 
+// Only needed for Arduino Json 4.
 double getValue(JsonObject& obj, String field) {
     double dval;
     int    ival;
-    
-    //Serial.println("inicio");
+
     dval = (double) obj[field].as<double>();
-    //Serial.println("dval: " + String(dval));
     
     if ( dval == 0 ) {
         ival = (int) obj[field].as<int>();
-        //Serial.println("ival: " + String(ival) );
         if ( ival != 0 ) return (double) ival;
     }
     
     return dval;
 }
 
+// Weather request Callback
 void weatherInfoCB(HttpClient &client, bool successful) {
     StaticJsonBuffer<2048> jsonBuffer;
 
@@ -219,16 +201,20 @@ void weatherInfoCB(HttpClient &client, bool successful) {
 
             //temps.prettyPrintTo(Serial);
 
-            double temp     = getValue( temps , "temp");
-            double temp_min = getValue( temps , "temp_min");
-            double temp_max = getValue( temps , "temp_max");
-            double humidity = getValue( temps , "humidity");
-
-//            Serial.println("......");
-//            Serial.println("Temp Now: " + String(temp));
-//            Serial.println("Temp Min: " + String(temp_min));
-//            Serial.println("Temp Max: " + String(temp_max));
-//            Serial.println("Humidity: " + String(humidity));
+//            double temp     = getValue( temps , "temp");
+//            double temp_min = getValue( temps , "temp_min");
+//            double temp_max = getValue( temps , "temp_max");
+//            double humidity = getValue( temps , "humidity");
+            double temp     = (double)temps["temp"].as<double>();
+            double temp_min = (double)temps["temp_min"].as<double>();
+            double temp_max = (double)temps["temp_max"].as<double>();
+            double humidity = (double)temps["humidity"].as<double>();
+            
+            Serial.println("......");
+            Serial.println("Temp Now: " + String(temp));
+            Serial.println("Temp Min: " + String(temp_min));
+            Serial.println("Temp Max: " + String(temp_max));
+            Serial.println("Humidity: " + String(humidity));
 
             double pressure = getValue( temps , "pressure");
 //            Serial.println("Pressure: " + String(pressure));
@@ -286,12 +272,13 @@ void startMain() {
     checkTimer.stop();
     // Register Device on the provisioning Server
     lcd.setCursor(0,0);
-    lcd.print("Registering...");
-    registerDevice();
+
+    IoTPing();
 
     // Start send data loop
     //procTimer.initializeMs(25 * 1000, sendData).start(); // every 25 seconds
-    owTimer.initializeMs(30 * 1000, (InterruptCallback)getWeather ).start();
+    owTimer.initializeMs(30 * 1000, (InterruptCallback) getWeather ).start();  // Every 2 minutes.
+    IoTTimer.initializeMs(120 * 1000, (InterruptCallback) IoTPing ).start(true);
     
 }
 
@@ -347,15 +334,15 @@ void sysReady() {
     
     lcd.begin(16, 2);   // initialize the lcd for 16 chars 2 lines, turn on backlight
 
-        // ------- Quick 3 blinks of backlight  -------------
-        for(int i = 0; i< 3; i++)
-        {
-                lcd.backlight();
-                delay(150);
-                lcd.noBacklight();
-                delay(250);
-        }
-        lcd.backlight(); // finish with backlight on
+    // ------- Quick 3 blinks of backlight  -------------
+    for(int i = 0; i< 3; i++)
+    {
+            lcd.backlight();
+            delay(150);
+            lcd.noBacklight();
+            delay(250);
+    }
+    lcd.backlight(); // finish with backlight on
 
 }
 

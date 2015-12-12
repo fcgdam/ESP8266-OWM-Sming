@@ -1,6 +1,20 @@
 #ifndef __USER_CONFIG_H__
 #define __USER_CONFIG_H__
 
+#ifndef WIFI_SSID
+    #define WIFI_SSID "SSID" // Put you SSID and Password here
+    #define WIFI_PWD "ssidpwd
+#endif
+
+#define LOCATION "Lisbon"
+#define METRICS  "metric"   
+#define OWAPIKEY "ow key"   // Put your OpenWeather Key here.
+
+// My Phant server stream for logging heap
+#define PHANTSERVER  "192.168.1.17:8080"
+#define PHANTPUBKEY  "VmwrzZDPKpFyAddzPX4oIbqXwp9"
+#define PHANTPRIVKEY "7QLYlybXMgCAaVVdLp9zsaWdRw6"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
